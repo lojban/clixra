@@ -1,0 +1,9 @@
+About:
+
+Update.hs contains a small utility to refresh the gismu list by
+downloading it from the wiki.
+
+It can be accessed via the web interface.
+
+If you want to compile it as a utility in order to run the update
+manually, read BUILD.

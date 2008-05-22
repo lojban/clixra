@@ -1,0 +1,1 @@
+ghc --make Main.hs View/View.hs Update/Update.hs -o Clixra.fcgi -threaded
