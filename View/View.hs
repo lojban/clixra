@@ -12,23 +12,54 @@ import Data.Maybe
 import Data.List
 import Text.XHtml.Strict
 import IO
+import Text.Regex
 
 type Entry = (String,String,String)
 type DB = [Entry]
 
 view :: CGI CGIResult
-view = output . showHtml =<< do
+view = output . showHtml . template =<< do
   db <- getDB
+  gismu <- getInput "gismu"
+  case gismu of
+    Just gismu' -> tryGismu db gismu'
+    Nothing     -> tryRandom db
+
+template = (header << (thetitle << "clixra") +++) . (body<<)
+
+tryRandom :: DB -> CGI Html
+tryRandom db = do
   rEntry <- randomEntry db
   case rEntry of
     Just entry -> showEntry entry
     Nothing    -> retFail db
 
+tryGismu :: DB -> String -> CGI Html
+tryGismu db gismu =
+    case find gisEq db of
+      Just entry' -> do entry <- validEntry db entry'
+                        case entry of
+                          Just entry -> showEntry entry
+                          Nothing -> return $ p << "Couldn't retrieve from Wiki."
+      Nothing     -> notExists
+    where gisEq (_,gismu',_) | gismu' == gismu = True
+                             | otherwise       = False
+
 showEntry :: Entry -> CGI Html
 showEntry (_,gismu,url) = do
+  def <- places gismu
+  showDef <- getInput "places"
   return $ h1 << gismu
            +++
-           image ! [src url]
+           (maybe noHtml (const $ p << italics << def) showDef)
+           +++
+           p << image ! [src url, alt ""]
+           +++
+           p << ("Permalink: " +++ hotlink perm (primHtml perm))
+  where perm = "http://jbotcan.org/clixra2/Clixra.fcgi?gismu=" ++ gismu
+
+notExists :: CGI Html
+notExists = return $ p << "That gismu does not exist on the Wiki!"
 
 retFail :: DB -> CGI Html
 retFail db = do
@@ -50,7 +81,11 @@ randomEntry :: DB -> CGI (Maybe Entry)
 randomEntry [] = return Nothing
 randomEntry db = do
   i <- randomIndex db
-  case db !! i of
+  validEntry db $ db !! i
+
+validEntry :: DB -> Entry -> CGI (Maybe Entry)
+validEntry db entry' = do
+  case entry' of
     e@(img,gismu,"") -> tryLookup db e
     entry            -> return $ Just entry
 
@@ -102,3 +137,11 @@ randomIndex db = liftIO $ getStdRandom $ randomR (0,length db-1)
 
 getDB :: CGI DB
 getDB = liftIO $ liftM read $ readFile "gismu.db"
+
+places :: String -> CGI String
+places gismu = liftIO $ do
+  gismus <- liftM lines $ readFile "gismu.txt"
+  let match = maybe "" head $ matchRegex (mkRegex "^.{61}(.{98})(\\-|.{10}(.*))") def
+      def = maybe "" id $ find correct gismus
+      correct = (==gismu) . tail . take 6
+  return match
