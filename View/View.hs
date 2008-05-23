@@ -12,9 +12,12 @@ import Data.Maybe
 import Data.List
 import Text.XHtml.Strict
 
+type DB = [(String,String,String)]
+
 view :: CGI CGIResult
 view = output . showHtml =<< do
-  (img,gismu) <- randImage
+  db <- liftIO $ gismuDB
+  (img,gismu) <- randImage db
   url <- imageLookup img
   case url of
     Just url -> return $ h1 << gismu +++ p << image ! [src url]
@@ -30,20 +33,31 @@ imageLookup img = do
               ++ img ++
               "&prop=imageinfo&iiprop=url&&iiurlwidth=500&format=xml"
 
-getUrl :: String -> Maybe String
-getUrl xml = url' where
-    url' = case url of
-             Just (_,AttValue [Left u]) -> Just u
-             _ -> Nothing
-    url = find ((=="thumburl") . fst) attrs
-    CElem (Elem _ attrs _) = xtract "//ii[@thumburl]" cont !! 0
-    cont = CElem root    
-    (Document _ _ root _) = xmlParse "Wikipedia API" xml
+repSpaces :: String -> String
+repSpaces = id
 
-randImage :: CGI (String,String)
-randImage = liftIO $ do
-  db <- readFile "gismu.db"
-  let entries = read db :: [(String,String,String)]
-  r <- getStdRandom $ randomR (0,length entries-1)
-  let (img,gismu,_) = entries !! r
+getUrl :: String -> Maybe String
+getUrl xml =
+    case extract xml of
+      [CElem (Elem _ a _)] -> innerUrl $ find ((=="thumburl") . fst) a
+      _                    -> Nothing
+
+innerUrl elem = 
+    case elem of
+      Just (_,AttValue [Left u]) -> Just u
+      _                          -> Nothing
+
+extract xml = xtract "//ii[@thumburl]" cont where
+    cont = CElem root    
+    (Document _ _ root _) = xmlParse "Wikipedia API" xml    
+
+randImage :: DB -> CGI (String,String)
+randImage db = liftIO $ do
+  r <- getStdRandom $ randomR (0, length db - 1)
+  let (img,gismu,_) = db !! r
   return $ (urlEncode img,gismu)
+
+gismuDB :: IO DB
+gismuDB = do
+  db <- readFile "gismu.db"
+  return $ read db :: IO DB
