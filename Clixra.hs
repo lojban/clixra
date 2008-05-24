@@ -2,14 +2,16 @@ module Clixra where
 
 import Update
 import View
+import ClixraMonad
 
 import Network.CGI
+import Control.Concurrent
 
-clixra :: CGI CGIResult
+clixra :: Clixra CGIResult
 clixra = do
   page <- getInput "page"
   case page of
-    Just "update" -> do liftIO update
+    Just "update" -> do liftIO $ update
                         output "Updated."
     _ -> view
- 
+

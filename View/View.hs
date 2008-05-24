@@ -1,5 +1,8 @@
 module View where
 
+import ClixraMonad
+
+import Control.Concurrent
 import Network.CGI
 import Text.XHtml.Strict
 import System.Random
@@ -17,7 +20,7 @@ import Text.Regex
 type Entry = (String,String,String)
 type DB = [Entry]
 
-view :: CGI CGIResult
+view :: Clixra CGIResult
 view = output . showHtml . template =<< do
   db <- getDB
   gismu <- getInput "gismu"
@@ -27,14 +30,14 @@ view = output . showHtml . template =<< do
 
 template = (header << (thetitle << "clixra") +++) . (body<<)
 
-tryRandom :: DB -> CGI Html
+tryRandom :: DB -> Clixra Html
 tryRandom db = do
   rEntry <- randomEntry db
   case rEntry of
     Just entry -> showEntry entry
     Nothing    -> retFail db
 
-tryGismu :: DB -> String -> CGI Html
+tryGismu :: DB -> String -> Clixra Html
 tryGismu db gismu =
     case find gisEq db of
       Just entry' -> do entry <- validEntry db entry'
@@ -45,7 +48,7 @@ tryGismu db gismu =
     where gisEq (_,gismu',_) | gismu' == gismu = True
                              | otherwise       = False
 
-showEntry :: Entry -> CGI Html
+showEntry :: Entry -> Clixra Html
 showEntry (_,gismu,url) = do
   def <- places gismu
   showDef <- getInput "places"
@@ -58,17 +61,17 @@ showEntry (_,gismu,url) = do
            p << ("Permalink: " +++ hotlink perm (primHtml perm))
   where perm = "http://jbotcan.org/clixra2/Clixra.fcgi?gismu=" ++ gismu
 
-notExists :: CGI Html
+notExists :: Clixra Html
 notExists = return $ p << "That gismu does not exist on the Wiki!"
 
-retFail :: DB -> CGI Html
+retFail :: DB -> Clixra Html
 retFail db = do
   tryEx <- doExistingEntry db
   return $ p << "Couldn't retrieve entry from Wikipedia."
            +++
            tryEx
 
-doExistingEntry :: DB -> CGI Html
+doExistingEntry :: DB -> Clixra Html
 doExistingEntry db = do
   rExEntry <- randomEntry $ filter hasURL db
   case rExEntry of
@@ -77,19 +80,19 @@ doExistingEntry db = do
     where hasURL (_,_,"") = False
           hasURL _        = True
 
-randomEntry :: DB -> CGI (Maybe Entry)
+randomEntry :: DB -> Clixra (Maybe Entry)
 randomEntry [] = return Nothing
 randomEntry db = do
   i <- randomIndex db
   validEntry db $ db !! i
 
-validEntry :: DB -> Entry -> CGI (Maybe Entry)
+validEntry :: DB -> Entry -> Clixra (Maybe Entry)
 validEntry db entry' = do
   case entry' of
     e@(img,gismu,"") -> tryLookup db e
     entry            -> return $ Just entry
 
-tryLookup :: DB -> Entry -> CGI (Maybe Entry)
+tryLookup :: DB -> Entry -> Clixra (Maybe Entry)
 tryLookup db (img,gismu,_) = do
   url <- imageLookup img
   case url of
@@ -97,7 +100,7 @@ tryLookup db (img,gismu,_) = do
                     return $ Just (img,gismu,url')
     _         -> return $ Nothing
 
-updateDBURL :: DB -> String -> String -> CGI ()
+updateDBURL :: DB -> String -> String -> Clixra ()
 updateDBURL db img url = liftIO $ do
   let newDB = mapMaybe update db
       update (img',gismu,_) | img' == img = Just (img,gismu,url)
@@ -107,7 +110,7 @@ updateDBURL db img url = liftIO $ do
   hPutStr h $ show newDB
   hClose h
 
-imageLookup :: String -> CGI (Maybe String)
+imageLookup :: String -> Clixra (Maybe String)
 imageLookup img = do
   (code,body) <- liftIO $ curlGetString url []
   if code == CurlOK
@@ -132,13 +135,13 @@ extract xml = xtract "//ii[@thumburl]" cont where
     cont = CElem root    
     (Document _ _ root _) = xmlParse "Wikipedia API" xml  
 
-randomIndex :: DB -> CGI Int
+randomIndex :: DB -> Clixra Int
 randomIndex db = liftIO $ getStdRandom $ randomR (0,length db-1)
 
-getDB :: CGI DB
+getDB :: Clixra DB
 getDB = liftIO $ liftM read $ readFile "gismu.db"
 
-places :: String -> CGI String
+places :: String -> Clixra String
 places gismu = liftIO $ do
   gismus <- liftM lines $ readFile "gismu.txt"
   let match = maybe "" head $ matchRegex (mkRegex "^.{61}(.{98})(\\-|.{10}(.*))") def

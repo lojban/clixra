@@ -6,6 +6,7 @@ import Data.Maybe
 import IO
 import Text.HTML.TagSoup
 import Data.List
+import Control.Concurrent
 
 update :: IO ()
 update = do
