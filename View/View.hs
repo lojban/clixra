@@ -101,14 +101,14 @@ tryLookup db (img,gismu,_) = do
     _         -> return $ Nothing
 
 updateDBURL :: DB -> String -> String -> Clixra ()
-updateDBURL db img url = liftIO $ do
-  let newDB = mapMaybe update db
-      update (img',gismu,_) | img' == img = Just (img,gismu,url)
-      update (img,gismu,u) = Just (img,gismu,u)
+updateDBURL db img url = withLock $ do
   h <- openFile "gismu.db" WriteMode
   hSetBuffering h NoBuffering
   hPutStr h $ show newDB
   hClose h
+  where newDB = mapMaybe update db
+        update (img',gismu,_) | img' == img = Just (img,gismu,url)
+        update (img,gismu,u) = Just (img,gismu,u)
 
 imageLookup :: String -> Clixra (Maybe String)
 imageLookup img = do
@@ -139,11 +139,11 @@ randomIndex :: DB -> Clixra Int
 randomIndex db = liftIO $ getStdRandom $ randomR (0,length db-1)
 
 getDB :: Clixra DB
-getDB = liftIO $ liftM read $ readFile "gismu.db"
+getDB = withLock $ liftM read $ readFile "gismu.db"
 
 places :: String -> Clixra String
-places gismu = liftIO $ do
-  gismus <- liftM lines $ readFile "gismu.txt"
+places gismu = do
+  gismus <- withLock $ liftM lines $ readFile "gismu.txt"
   let match = maybe "" head $ matchRegex (mkRegex "^.{61}(.{98})(\\-|.{10}(.*))") def
       def = maybe "" id $ find correct gismus
       correct = (==gismu) . tail . take 6

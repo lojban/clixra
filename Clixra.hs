@@ -11,7 +11,6 @@ clixra :: Clixra CGIResult
 clixra = do
   page <- getInput "page"
   case page of
-    Just "update" -> do liftIO $ update
-                        output "Updated."
+    Just "update" -> updatePage
     _ -> view
 

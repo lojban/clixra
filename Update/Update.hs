@@ -1,5 +1,7 @@
 module Update where
 
+import ClixraMonad
+
 import Network.Curl
 import Text.Regex
 import Data.Maybe
@@ -7,6 +9,15 @@ import IO
 import Text.HTML.TagSoup
 import Data.List
 import Control.Concurrent
+import Network.CGI
+import Control.Monad
+import Control.Monad.State
+
+updatePage :: Clixra CGIResult
+updatePage = do
+  v <- gets clixraLock
+  withLock update
+  output "Updated."
 
 update :: IO ()
 update = do
