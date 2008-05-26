@@ -52,14 +52,21 @@ showEntry :: Entry -> Clixra Html
 showEntry (_,gismu,url) = do
   def <- places gismu
   showDef <- getInput "places"
-  return $ h1 << gismu
+  let perm = clixraUrl ++ gismu
+      pl   = maybe "" (const p') showDef
+      p'   = "&places"
+  return $ p << small << hotlink "Clixra.fcgi" (primHtml "New gismu")
            +++
-           (maybe noHtml (const $ p << italics << def) showDef)
+           h1 << gismu
+           +++
+           (maybe (""+++(hotlink (perm++p') (primHtml "Show places")))
+                  (const $ p << italics << def) showDef)
            +++
            p << image ! [src url, alt ""]
            +++
-           p << ("Permalink: " +++ hotlink perm (primHtml perm))
-  where perm = "http://jbotcan.org/clixra2/Clixra.fcgi?gismu=" ++ gismu
+           p << ("Permalink: " +++ hotlink (perm++pl) (primHtml $ perm++pl))
+
+clixraUrl = "http://jbotcan.org/clixra2/Clixra.fcgi?gismu="
 
 notExists :: Clixra Html
 notExists = return $ p << "That gismu does not exist on the Wiki!"
@@ -107,8 +114,8 @@ updateDBURL db img url = withLock $ do
   hPutStr h $ show newDB
   hClose h
   where newDB = mapMaybe update db
-        update (img',gismu,_) | img' == img = Just (img,gismu,url)
-        update (img,gismu,u) = Just (img,gismu,u)
+        update (img',gismu,u) | img' == img = Just (img,gismu,url)
+                              | otherwise   = Just (img,gismu,u)
 
 imageLookup :: String -> Clixra (Maybe String)
 imageLookup img = do
@@ -126,13 +133,13 @@ getUrl xml =
       [CElem (Elem _ a _)] -> innerUrl $ find ((=="thumburl") . fst) a
       _                    -> Nothing
 
+innerUrl :: Maybe (t, AttValue) -> Maybe String
 innerUrl elem = 
     case elem of
       Just (_,AttValue [Left u]) -> Just u
       _                          -> Nothing
 
-extract xml = xtract "//ii[@thumburl]" cont where
-    cont = CElem root    
+extract xml = xtract "//ii[@thumburl]" (CElem root) where
     (Document _ _ root _) = xmlParse "Wikipedia API" xml  
 
 randomIndex :: DB -> Clixra Int
